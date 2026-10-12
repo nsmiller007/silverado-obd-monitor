@@ -1,0 +1,17 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env*
+keys/
+secrets*
+*.log
+*.csv
+error.txt
+*.zip
+Backup*/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

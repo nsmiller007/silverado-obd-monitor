@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZipTie • OBD-II Monitor</title>
+<style>
+  :root {
+    --bg: #0a0606;
+    --panel: #140a0a;
+    --border: #3a1515;
+    --text: #f5e8e8;
+    --dim: #a07878;
+    --accent: #dc2626;
+    --green: #22c55e;
+    --yellow: #eab308;
+    --red: #ef2222;
+    --cyan: #f87171;
+    --magenta: #fb7185;
+    --orange: #f97316;
+    --fire: #c41e1e;
+    --fire-bright: #ff2a2a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: radial-gradient(ellipse at 50% 0%, #2a0a0a 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    padding: 14px;
+    line-height: 1.4;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    background: linear-gradient(90deg, #1a0505, #3a0c0c 50%, #1a0505);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 14px;
+  }
+
+  .title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .title .brand-name {
+    color: var(--fire-bright);
+    text-shadow: 0 0 12px rgba(255,42,42,0.45);
+    letter-spacing: 0.04em;
+  }
+  .title .sub {
+    color: var(--dim);
+    font-weight: 500;
+    font-size: 0.9rem;
+  }
+  .chevy-logo {
+    width: 48px;
+    height: 20px;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 8px rgba(255, 42, 42, 0.4));
+  }
+
+  .status {
+    display: flex;
+    gap: 16px;
+    font-size: 0.85rem;
+    color: var(--dim);
+    align-items: center;
+  }
+
+  .status .demo {
+    color: var(--magenta);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+
+  .view-toggle {
+    display: flex;
+    gap: 4px;
+    background: #0a0f18;
+    border-radius: 8px;
+    padding: 3px;
+    border: 1px solid var(--border);
+  }
+
+  .view-toggle button {
+    padding: 6px 14px;
+    border: none;
+    background: transparent;
+    color: var(--dim);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  .view-toggle button.active {
+    background: #5a1212;
+    color: #fecaca;
+  }
+
+  /* ========== CLUSTER VIEW ========== */
+  #view-cluster { display: block; }
+  #view-metrics { display: none; }
+
+  .cluster {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+
+  @media (max-width: 1000px) {
+    .cluster { grid-template-columns: 1fr; }
+  }
+
+  .cluster-center {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .big-gauges {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 16px 12px;
+  }
+
+  .svg-gauge {
+    position: relative;
+    width: 180px;
+    height: 180px;
+  }
+
+  .svg-gauge svg { width: 100%; height: 100%; transform: rotate(-135deg); }
+
+  .svg-gauge .track {
+    fill: none;
+    stroke: #1a2233;
+    stroke-width: 12;
+  }
+
+  .svg-gauge .arc {
+    fill: none;
+    stroke-width: 12;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.3s ease, stroke 0.3s;
+  }
+
+  .svg-gauge .center-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .svg-gauge .val {
+    font-size: 2.1rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .svg-gauge .unit {
+    font-size: 0.75rem;
+    color: var(--dim);
+    margin-top: 2px;
+  }
+
+  .svg-gauge .label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--dim);
+    margin-top: 6px;
+  }
+
+  /* Side tiles */
+  .side-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .tile {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+
+  .tile .t-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+    margin-bottom: 4px;
+  }
+
+  .tile .t-val {
+    font-size: 1.35rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tile .t-unit {
+    font-size: 0.75rem;
+    color: var(--dim);
+    margin-left: 3px;
+  }
+
+  .tile .t-bar {
+    height: 5px;
+    background: #1a2233;
+    border-radius: 3px;
+    margin-top: 8px;
+    overflow: hidden;
+  }
+
+  .tile .t-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.25s ease, background 0.3s;
+  }
+
+  /* Mini row under big gauges */
+  .mini-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  @media (max-width: 700px) {
+    .mini-row { grid-template-columns: 1fr 1fr; }
+  }
+
+  .mini {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+
+  .mini .m-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+  }
+
+  .mini .m-val {
+    font-size: 1.15rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+  }
+
+  .mini .m-unit { font-size: 0.7rem; color: var(--dim); }
+
+  /* Fuel status / system strip */
+  .sys-strip {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  @media (max-width: 700px) {
+    .sys-strip { grid-template-columns: 1fr; }
+  }
+
+  .sys-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+
+  .sys-card .s-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+  }
+
+  .sys-card .s-val {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+
+  /* Alerts under cluster */
+  .alerts-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+
+  .alerts-panel h2 {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+    margin-bottom: 10px;
+  }
+
+  .alerts { max-height: 180px; overflow-y: auto; }
+
+  .alert {
+    display: flex;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 0.82rem;
+    background: #0a0f18;
+    border-left: 3px solid var(--dim);
+  }
+
+  .alert.warn { border-left-color: var(--yellow); }
+  .alert.crit { border-left-color: var(--red); }
+  .alert.info { border-left-color: var(--cyan); }
+
+  .alert-level {
+    font-weight: 700;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    min-width: 34px;
+  }
+
+  .alert.warn .alert-level { color: var(--yellow); }
+  .alert.crit .alert-level { color: var(--red); }
+  .alert.info .alert-level { color: var(--cyan); }
+
+  .alert-msg { flex: 1; color: #c5d0e4; }
+  .alert-age { color: var(--dim); font-size: 0.72rem; }
+
+  .oil-note {
+    background: #1a1008;
+    border: 1px solid #4a2c0a;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.78rem;
+    color: #fbbf24;
+    line-height: 1.45;
+    margin-top: 10px;
+  }
+
+  .oil-note strong { color: #fcd34d; }
+
+  /* ========== METRICS VIEW ========== */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 14px;
+  }
+
+  @media (max-width: 900px) {
+    .metrics-grid { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+  }
+
+  .panel h2 {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+    margin-bottom: 12px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.86rem;
+  }
+
+  th {
+    text-align: left;
+    color: var(--dim);
+    font-weight: 600;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 7px 8px;
+    border-bottom: 1px solid #141b27;
+    font-variant-numeric: tabular-nums;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  .val { font-weight: 600; }
+  .val.green { color: var(--green); }
+  .val.yellow { color: var(--yellow); }
+  .val.red { color: var(--red); }
+  .val.cyan { color: var(--cyan); }
+  .val.white { color: var(--text); }
+
+  .spark {
+    font-family: monospace;
+    font-size: 0.78rem;
+    color: var(--cyan);
+    letter-spacing: -1px;
+  }
+
+  /* Footer */
+  footer {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  footer button {
+    background: #1a2436;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+
+  footer button:hover { background: #243044; }
+  footer button.active {
+    background: #1e3a5f;
+    border-color: var(--accent);
+    color: #93c5fd;
+  }
+
+  .phase {
+    margin-left: auto;
+    font-size: 0.82rem;
+    color: var(--dim);
+  }
+
+  .phase strong { color: var(--cyan); }
+
+  .c-green { color: var(--green); }
+  .c-yellow { color: var(--yellow); }
+  .c-red { color: var(--red); }
+  .c-cyan { color: var(--cyan); }
+  .c-orange { color: var(--orange); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title">
+    <!-- Simplified Chevrolet bowtie (decorative mark) -->
+    <svg class="chevy-logo" viewBox="0 0 200 80" xmlns="http://www.w3.org/2000/svg" aria-label="Chevrolet" role="img">
+      <defs>
+        <linearGradient id="bowtieGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#ff4d4d"/>
+          <stop offset="45%" stop-color="#ef2222"/>
+          <stop offset="100%" stop-color="#a30f0f"/>
+        </linearGradient>
+      </defs>
+      <path fill="url(#bowtieGrad)" stroke="#ffb4b4" stroke-width="2" stroke-linejoin="round"
+        d="M8 30 H48 L62 10 H138 L152 30 H192 L178 50 H152 L138 70 H62 L48 50 H8 Z"/>
+    </svg>
+    <span class="brand-name">ZipTie</span>
+    <span class="sub">1998 Silverado · 5.7 Vortec · OBD-II</span>
+  </div>
+  <div class="status">
+    <div class="view-toggle">
+      <button id="btn-cluster" class="active" onclick="setView('cluster')">Cluster</button>
+      <button id="btn-metrics" onclick="setView('metrics')">Metrics</button>
+    </div>
+    <span class="demo" id="mode-badge" style="color:var(--fire-bright)">ZIP TIE DEMO</span>
+    <span id="elapsed">0:00</span>
+    <span id="samples">0 samples</span>
+  </div>
+</header>
+
+<!-- ========== CLUSTER VIEW ========== -->
+<div id="view-cluster">
+  <div class="cluster">
+    <!-- Left tiles -->
+    <div class="side-stack">
+      <div class="tile">
+        <div class="t-label">Coolant</div>
+        <div><span class="t-val" id="t-coolant">—</span><span class="t-unit">°F</span></div>
+        <div class="t-bar"><div class="t-fill" id="bar-coolant" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="tile">
+        <div class="t-label">Intake Air</div>
+        <div><span class="t-val" id="t-intake">—</span><span class="t-unit">°F</span></div>
+        <div class="t-bar"><div class="t-fill" id="bar-intake" style="width:0%;background:var(--cyan)"></div></div>
+      </div>
+      <div class="tile">
+        <div class="t-label">Ignition Timing</div>
+        <div><span class="t-val" id="t-timing">—</span><span class="t-unit">°</span></div>
+        <div class="t-bar"><div class="t-fill" id="bar-timing" style="width:0%;background:var(--cyan)"></div></div>
+      </div>
+      <div class="tile">
+        <div class="t-label">Throttle</div>
+        <div><span class="t-val" id="t-throttle">—</span><span class="t-unit">%</span></div>
+        <div class="t-bar"><div class="t-fill" id="bar-throttle" style="width:0%;background:var(--accent)"></div></div>
+      </div>
+    </div>
+
+    <!-- Center: big gauges -->
+    <div class="cluster-center">
+      <div class="big-gauges">
+        <!-- RPM gauge -->
+        <div class="svg-gauge" id="gauge-rpm">
+          <svg viewBox="0 0 120 120">
+            <circle class="track" cx="60" cy="60" r="48" stroke-dasharray="226.2" stroke-dashoffset="56.55"/>
+            <circle class="arc" id="arc-rpm" cx="60" cy="60" r="48"
+              stroke="var(--green)" stroke-dasharray="226.2" stroke-dashoffset="226.2"/>
+          </svg>
+          <div class="center-text">
+            <div class="val" id="g-rpm">—</div>
+            <div class="unit">rpm</div>
+            <div class="label">Engine</div>
+          </div>
+        </div>
+        <!-- Speed gauge -->
+        <div class="svg-gauge" id="gauge-speed">
+          <svg viewBox="0 0 120 120">
+            <circle class="track" cx="60" cy="60" r="48" stroke-dasharray="226.2" stroke-dashoffset="56.55"/>
+            <circle class="arc" id="arc-speed" cx="60" cy="60" r="48"
+              stroke="var(--accent)" stroke-dasharray="226.2" stroke-dashoffset="226.2"/>
+          </svg>
+          <div class="center-text">
+            <div class="val" id="g-speed">—</div>
+            <div class="unit">mph</div>
+            <div class="label">Speed</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mini-row" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="mini">
+          <div class="m-label">LTFT B1</div>
+          <div class="m-val" id="m-ltft">—</div>
+          <div class="m-unit">%</div>
+        </div>
+        <div class="mini">
+          <div class="m-label">LTFT B2</div>
+          <div class="m-val" id="m-ltft2">—</div>
+          <div class="m-unit">%</div>
+        </div>
+        <div class="mini">
+          <div class="m-label">STFT B1</div>
+          <div class="m-val" id="m-stft">—</div>
+          <div class="m-unit">%</div>
+        </div>
+        <div class="mini">
+          <div class="m-label">STFT B2</div>
+          <div class="m-val" id="m-stft2">—</div>
+          <div class="m-unit">%</div>
+        </div>
+        <div class="mini">
+          <div class="m-label">Load</div>
+          <div class="m-val" id="m-load">—</div>
+          <div class="m-unit">%</div>
+        </div>
+        <div class="mini">
+          <div class="m-label">MAF</div>
+          <div class="m-val" id="m-maf">—</div>
+          <div class="m-unit">g/s</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right tiles -->
+    <div class="side-stack">
+      <div class="tile">
+        <div class="t-label">Module Voltage</div>
+        <div><span class="t-val" id="t-volt">—</span><span class="t-unit">V</span></div>
+        <div class="t-bar"><div class="t-fill" id="bar-volt" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="tile">
+        <div class="t-label">O2 B1S1 Up</div>
+        <div><span class="t-val" id="t-o2up">—</span><span class="t-unit">V</span></div>
+        <div class="t-bar"><div class="t-fill" id="bar-o2up" style="width:0%;background:var(--cyan)"></div></div>
+      </div>
+      <div class="tile">
+        <div class="t-label">O2 B2S1 Up</div>
+        <div><span class="t-val" id="t-o2up2">—</span><span class="t-unit">V</span></div>
+        <div class="t-bar"><div class="t-fill" id="bar-o2up2" style="width:0%;background:var(--cyan)"></div></div>
+      </div>
+      <div class="tile">
+        <div class="t-label">O2 B1S2 Down</div>
+        <div><span class="t-val" id="t-o2dn">—</span><span class="t-unit">V</span></div>
+        <div class="t-bar"><div class="t-fill" id="bar-o2dn" style="width:0%;background:var(--dim)"></div></div>
+      </div>
+      <div class="tile">
+        <div class="t-label">O2 B2S2 Down</div>
+        <div><span class="t-val" id="t-o2dn2">—</span><span class="t-unit">V</span></div>
+        <div class="t-bar"><div class="t-fill" id="bar-o2dn2" style="width:0%;background:var(--dim)"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sys-strip" style="grid-template-columns: repeat(6, 1fr);">
+    <div class="sys-card">
+      <div class="s-label">Fuel System</div>
+      <div class="s-val" id="s-fuel">—</div>
+    </div>
+    <div class="sys-card">
+      <div class="s-label">Fuel Level</div>
+      <div class="s-val" id="s-fuel-level">—</div>
+    </div>
+    <div class="sys-card">
+      <div class="s-label">Fuel Rate</div>
+      <div class="s-val" id="s-fuel-rate">—</div>
+    </div>
+    <div class="sys-card">
+      <div class="s-label">Ambient</div>
+      <div class="s-val" id="s-ambient">—</div>
+    </div>
+    <div class="sys-card">
+      <div class="s-label">Baro / MAP</div>
+      <div class="s-val" id="s-baro">—</div>
+    </div>
+    <div class="sys-card">
+      <div class="s-label">Run Time</div>
+      <div class="s-val" id="s-runtime">—</div>
+    </div>
+  </div>
+
+  <div class="alerts-panel">
+    <h2>Alerts & Flags</h2>
+    <div class="alerts" id="alerts">
+      <div style="color:var(--dim);font-size:0.85rem;padding:6px 0">No active flags yet…</div>
+    </div>
+    <div class="oil-note">
+      <strong>ZIP TIE OIL PRESSURE:</strong> NOT quantitative PSI via standard OBD-II (L31 dash sender only).
+      <strong>FSM min hot:</strong> 6 psi @ 1,000 / 18 psi @ 2,000 / 24 psi @ 4,000 RPM. Mechanical gauge required.
+      <br><strong>L31 watch-outs:</strong> intake gaskets (coolant), FPR, knock sensor, EGR, MAF, fuel pump, distributor/ICM.
+      <br><strong>Tech2-only (not Mode 01):</strong> Desired Idle, IAC, Knock Retard, per-cyl misfire, Injector PWM, Oil Level Low.
+    </div>
+    <div class="dtc-panel" id="dtc-panel" style="margin-top:10px;background:#1a0808;border:1px solid #5a1515;border-radius:10px;padding:12px;">
+      <h2 style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--dim);margin-bottom:8px;">DTCs &amp; MIL</h2>
+      <div id="dtc-body" style="font-size:0.85rem;color:var(--dim);">Waiting for server DTC poll (press d in terminal)…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== METRICS VIEW ========== -->
+<div id="view-metrics">
+  <div class="metrics-grid">
+    <div class="panel">
+      <h2>Live Metrics</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Value</th>
+            <th>Min</th>
+            <th>Max</th>
+            <th>Trend</th>
+          </tr>
+        </thead>
+        <tbody id="metrics-body"></tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>Alerts & Flags</h2>
+      <div class="alerts" id="alerts-metrics">
+        <div style="color:var(--dim);font-size:0.85rem;padding:6px 0">No active flags yet…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <button id="btn-baseline" onclick="captureBaseline()">Capture Baseline</button>
+  <button id="btn-clear" onclick="clearFlags()">Clear Flags</button>
+  <button id="btn-pause" onclick="togglePause()">Pause</button>
+  <div class="phase">ZipTie · Phase: <strong id="phase">cold idle</strong></div>
+</footer>
+
+<script>
+// Circumference of r=48 circle = 2*pi*48 ≈ 301.59
+// We use 270° sweep → usable length = 301.59 * 0.75 ≈ 226.2
+const ARC_LEN = 226.2;
+const ARC_GAP = 301.59 - ARC_LEN; // unused portion
+
+const METRICS = [
+  { key: "rpm",      label: "Engine RPM",       unit: "rpm",  fmt: v => v.toFixed(0) },
+  { key: "speed",    label: "Vehicle Speed",    unit: "mph",  fmt: v => v.toFixed(0) },
+  { key: "coolant",  label: "Coolant Temp",     unit: "°F",   fmt: v => v.toFixed(0) },
+  { key: "intake",   label: "Intake Air Temp",  unit: "°F",   fmt: v => v.toFixed(0) },
+  { key: "ambient",  label: "Ambient Air Temp", unit: "°F",   fmt: v => v.toFixed(0) },
+  { key: "timing",   label: "Ignition Timing",  unit: "°",    fmt: v => v.toFixed(1) },
+  { key: "load",     label: "Engine Load",      unit: "%",    fmt: v => v.toFixed(1) },
+  { key: "absLoad",  label: "Absolute Load",    unit: "%",    fmt: v => v.toFixed(1) },
+  { key: "throttle", label: "Throttle Position",unit: "%",    fmt: v => v.toFixed(1) },
+  { key: "relThrottle", label: "Relative Throttle", unit: "%", fmt: v => v.toFixed(1) },
+  { key: "maf",      label: "Mass Air Flow",    unit: "g/s",  fmt: v => v.toFixed(2) },
+  { key: "map",      label: "Intake MAP",       unit: "kPa",  fmt: v => v.toFixed(1) },
+  { key: "baro",     label: "Barometric Press", unit: "inHg", fmt: v => v.toFixed(2) },
+  { key: "stft",     label: "ST Fuel Trim B1",  unit: "%",    fmt: v => (v>=0?"+":"")+v.toFixed(1) },
+  { key: "ltft",     label: "LT Fuel Trim B1",  unit: "%",    fmt: v => (v>=0?"+":"")+v.toFixed(1) },
+  { key: "stft2",    label: "ST Fuel Trim B2",  unit: "%",    fmt: v => (v>=0?"+":"")+v.toFixed(1) },
+  { key: "ltft2",    label: "LT Fuel Trim B2",  unit: "%",    fmt: v => (v>=0?"+":"")+v.toFixed(1) },
+  { key: "volt",     label: "Module Voltage",   unit: "V",    fmt: v => v.toFixed(2) },
+  { key: "fuelLevel",label: "Fuel Level",       unit: "%",    fmt: v => v.toFixed(0) },
+  { key: "fuelRate", label: "Fuel Rate",        unit: "gph",  fmt: v => v.toFixed(2) },
+  { key: "runTime",  label: "Engine Run Time",  unit: "s",    fmt: v => v.toFixed(0) },
+  { key: "o2up",     label: "O2 B1S1 (up)",     unit: "V",    fmt: v => v.toFixed(3) },
+  { key: "o2dn",     label: "O2 B1S2 (down)",   unit: "V",    fmt: v => v.toFixed(3) },
+  { key: "o2up2",    label: "O2 B2S1 (up)",     unit: "V",    fmt: v => v.toFixed(3) },
+  { key: "o2dn2",    label: "O2 B2S2 (down)",   unit: "V",    fmt: v => v.toFixed(3) },
+  { key: "equiv",    label: "Cmd Equiv Ratio",  unit: "",     fmt: v => v.toFixed(3) },
+  { key: "cat",      label: "Cat Temp B1S1",    unit: "°F",   fmt: v => v.toFixed(0) },
+  { key: "cat2",     label: "Cat Temp B2S1",    unit: "°F",   fmt: v => v.toFixed(0) },
+  { key: "fuelPress",label: "Fuel Pressure",    unit: "psi",  fmt: v => v.toFixed(0) },
+  { key: "egr",      label: "Commanded EGR",    unit: "%",    fmt: v => v.toFixed(1) },
+  { key: "egrErr",   label: "EGR Error",        unit: "%",    fmt: v => (v>=0?"+":"")+v.toFixed(1) },
+  { key: "evap",     label: "EVAP Vapor Press", unit: "Pa",   fmt: v => v.toFixed(0) },
+  { key: "milDist",  label: "Distance w/ MIL",  unit: "mi",   fmt: v => v.toFixed(0) },
+  { key: "warmups",  label: "Warm-ups Since Clear", unit: "", fmt: v => v.toFixed(0) },
+  { key: "distClear",label: "Dist Since Clear", unit: "mi",   fmt: v => v.toFixed(0) },
+  { key: "elmVolt",  label: "Adapter Voltage",  unit: "V",    fmt: v => v.toFixed(2) },
+];
+
+const history = {};
+const stats = {};
+const flags = [];
+let samples = 0;
+let startTs = Date.now();
+let paused = false;
+let lastO2 = null;
+let o2CrossTs = 0;
+let fuelStatus = "—";
+
+METRICS.forEach(m => {
+  history[m.key] = [];
+  stats[m.key] = { min: Infinity, max: -Infinity };
+});
+
+function setView(name) {
+  document.getElementById("view-cluster").style.display = name === "cluster" ? "block" : "none";
+  document.getElementById("view-metrics").style.display = name === "metrics" ? "block" : "none";
+  document.getElementById("btn-cluster").classList.toggle("active", name === "cluster");
+  document.getElementById("btn-metrics").classList.toggle("active", name === "metrics");
+}
+
+function spark(arr, width = 14) {
+  if (arr.length < 3) return "";
+  const vals = arr.slice(-40);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  if (hi - lo < 1e-9) return "▁".repeat(width);
+  const chars = "▁▂▃▄▅▆▇█";
+  let out = "";
+  for (let i = 0; i < width; i++) {
+    const idx = Math.round(i * (vals.length - 1) / (width - 1));
+    const norm = (vals[idx] - lo) / (hi - lo);
+    out += chars[Math.max(0, Math.min(chars.length - 1, Math.floor(norm * (chars.length - 1))))];
+  }
+  return out;
+}
+
+function colorFor(key, val) {
+  if (key === "ltft" || key === "stft" || key === "ltft2" || key === "stft2") {
+    const a = Math.abs(val);
+    if (a >= 18) return "red";
+    if (a >= 12) return "yellow";
+    if (a >= 8) return "cyan";
+    return "green";
+  }
+  if (key === "coolant") {
+    if (val > 226) return "red";
+    if (val > 215) return "yellow";
+    return "green";
+  }
+  if (key === "timing") {
+    if (val < -3) return "red";
+    if (val < 2) return "yellow";
+    return "green";
+  }
+  if (key === "volt") {
+    if (val < 13.0) return "red";
+    if (val < 13.5) return "yellow";
+    return "green";
+  }
+  if (key === "cat" || key === "cat2") {
+    if (val > 1616) return "red";
+    if (val > 1508) return "yellow";
+    return "green";
+  }
+  if (key === "fuelPress") {
+    if (val > 0 && val < 35) return "red";
+    if (val > 75) return "yellow";
+    return "green";
+  }
+  if (key === "egrErr") {
+    if (Math.abs(val) >= 20) return "yellow";
+    return "green";
+  }
+  if (key === "milDist") {
+    if (val >= 1) return "red";
+    return "green";
+  }
+  return "white";
+}
+
+function cssColor(name) {
+  return ({ green: "var(--green)", yellow: "var(--yellow)", red: "var(--red)",
+            cyan: "var(--cyan)", accent: "var(--accent)", orange: "var(--orange)",
+            white: "var(--text)" })[name] || "var(--text)";
+}
+
+function setArc(id, pct, color) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const p = Math.max(0, Math.min(1, pct));
+  // arc starts fully offset (empty); reduce offset to fill
+  el.style.strokeDashoffset = String(ARC_LEN * (1 - p) + ARC_GAP * 0); // gap already in dasharray setup
+  // Actually with stroke-dasharray="226.2" and full circle ~301.6, the visible arc is 226.2
+  // offset 226.2 = empty, offset 0 = full 270° arc
+  el.style.strokeDashoffset = String(ARC_LEN * (1 - p));
+  el.style.stroke = cssColor(color);
+}
+
+function setTile(id, val, max, color, digits) {
+  const el = document.getElementById("t-" + id);
+  const bar = document.getElementById("bar-" + id);
+  if (!el) return;
+  el.textContent = typeof val === "number" ? val.toFixed(digits ?? 0) : "—";
+  el.className = "t-val c-" + color;
+  if (bar && typeof val === "number" && max) {
+    bar.style.width = Math.max(0, Math.min(100, (val / max) * 100)) + "%";
+    bar.style.background = cssColor(color);
+  }
+}
+
+function setMini(id, val, color, digits) {
+  const el = document.getElementById("m-" + id);
+  if (!el) return;
+  el.textContent = typeof val === "number" ? val.toFixed(digits ?? 1) : "—";
+  el.className = "m-val c-" + color;
+}
+
+function addFlag(level, msg) {
+  if (flags.some(f => f.msg === msg && Date.now() - f.ts < 12000)) return;
+  flags.unshift({ level, msg, ts: Date.now() });
+  if (flags.length > 20) flags.length = 20;
+  renderAlerts();
+}
+
+function renderAlerts() {
+  const html = !flags.length
+    ? `<div style="color:var(--dim);font-size:0.85rem;padding:6px 0">No active flags. Looking good so far.</div>`
+    : flags.map(f => {
+        const age = Math.floor((Date.now() - f.ts) / 1000);
+        return `<div class="alert ${f.level}">
+          <div class="alert-level">${f.level.toUpperCase()}</div>
+          <div class="alert-msg">${f.msg}</div>
+          <div class="alert-age">${age}s</div>
+        </div>`;
+      }).join("");
+  document.getElementById("alerts").innerHTML = html;
+  const m = document.getElementById("alerts-metrics");
+  if (m) m.innerHTML = html;
+}
+
+function renderMetrics(data) {
+  const tbody = document.getElementById("metrics-body");
+  if (!tbody) return;
+  tbody.innerHTML = METRICS.map(m => {
+    const v = data[m.key];
+    if (v == null) return "";
+    const h = history[m.key];
+    const st = stats[m.key];
+    const col = colorFor(m.key, v);
+    const min = st.min === Infinity ? "—" : m.fmt(st.min);
+    const max = st.max === -Infinity ? "—" : m.fmt(st.max);
+    return `<tr>
+      <td>${m.label}</td>
+      <td class="val ${col}">${m.fmt(v)} <span style="color:var(--dim);font-weight:400">${m.unit}</span></td>
+      <td style="color:var(--dim)">${min}</td>
+      <td style="color:var(--dim)">${max}</td>
+      <td class="spark">${spark(h)}</td>
+    </tr>`;
+  }).join("");
+}
+
+function updateCluster(data) {
+  // Big circular gauges
+  if (data.rpm != null) {
+    document.getElementById("g-rpm").textContent = data.rpm.toFixed(0);
+    setArc("arc-rpm", data.rpm / 5000, colorFor("rpm", data.rpm) === "white" ? "green" : colorFor("rpm", data.rpm));
+  }
+  if (data.speed != null) {
+    document.getElementById("g-speed").textContent = data.speed.toFixed(0);
+    setArc("arc-speed", data.speed / 80, "accent");
+  }
+
+  // Side tiles
+  if (data.coolant != null) setTile("coolant", data.coolant, 250, colorFor("coolant", data.coolant));
+  if (data.intake != null) setTile("intake", data.intake, 180, "cyan");
+  if (data.timing != null) setTile("timing", data.timing, 40, colorFor("timing", data.timing), 1);
+  if (data.throttle != null) setTile("throttle", data.throttle, 100, "accent", 1);
+  if (data.volt != null) setTile("volt", data.volt, 16, colorFor("volt", data.volt), 2);
+  if (data.o2up != null) setTile("o2up", data.o2up, 1.0, "cyan", 3);
+  if (data.o2up2 != null) setTile("o2up2", data.o2up2, 1.0, "cyan", 3);
+  if (data.o2dn != null) setTile("o2dn", data.o2dn, 1.0, "white", 3);
+  if (data.o2dn2 != null) setTile("o2dn2", data.o2dn2, 1.0, "white", 3);
+
+  // Minis
+  if (data.ltft != null) setMini("ltft", data.ltft, colorFor("ltft", data.ltft), 1);
+  if (data.ltft2 != null) setMini("ltft2", data.ltft2, colorFor("ltft2", data.ltft2), 1);
+  if (data.stft != null) setMini("stft", data.stft, colorFor("stft", data.stft), 1);
+  if (data.stft2 != null) setMini("stft2", data.stft2, colorFor("stft2", data.stft2), 1);
+  if (data.load != null) setMini("load", data.load, "white", 1);
+  if (data.maf != null) setMini("maf", data.maf, "cyan", 2);
+
+  // System strip
+  document.getElementById("s-fuel").textContent = fuelStatus || "—";
+  if (data.fuelLevel != null) {
+    const el = document.getElementById("s-fuel-level");
+    el.textContent = data.fuelLevel.toFixed(0) + " %";
+    el.className = "s-val " + (data.fuelLevel < 15 ? "c-red" : data.fuelLevel < 25 ? "c-yellow" : "c-green");
+  }
+  if (data.fuelRate != null) document.getElementById("s-fuel-rate").textContent = data.fuelRate.toFixed(2) + " gph";
+  if (data.ambient != null) document.getElementById("s-ambient").textContent = data.ambient.toFixed(0) + " °F";
+  if (data.baro != null || data.map != null) {
+    const parts = [];
+    if (data.baro != null) parts.push(data.baro.toFixed(2) + " inHg");
+    if (data.map != null) parts.push(data.map.toFixed(0) + " kPa MAP");
+    document.getElementById("s-baro").textContent = parts.join(" / ");
+  }
+  if (data.runTime != null) {
+    const rt = Math.floor(data.runTime);
+    const mm = Math.floor(rt / 60);
+    const ss = String(rt % 60).padStart(2, "0");
+    document.getElementById("s-runtime").textContent = mm + ":" + ss;
+  }
+}
+
+function simulate() {
+  if (paused) return;
+
+  const t = (Date.now() - startTs) / 1000;
+  let phase, rpm, speed, coolant, intake, load, throttle, timing, stft, ltft, o2up;
+
+  if (t < 30) {
+    phase = "cold idle";
+    rpm = 950 + (Math.random() - 0.5) * 70;
+    speed = 0;
+    coolant = 95 + t * 1.6 + (Math.random() - 0.5) * 3;
+    intake = 82 + (Math.random() - 0.5) * 5;
+    load = 18 + (Math.random() - 0.5) * 5;
+    throttle = 8 + (Math.random() - 0.5) * 2;
+    timing = 8 + (Math.random() - 0.5) * 2;
+    stft = (Math.random() - 0.4) * 6;
+    ltft = Math.random() * 4;
+    o2up = 0.45 + 0.05 * Math.sin(t * 0.8) + (Math.random() - 0.5) * 0.04;
+    fuelStatus = "Open (cold)";
+  } else if (t < 90) {
+    phase = "warm-up → closed loop";
+    rpm = 650 + (Math.random() - 0.5) * 40;
+    speed = 0;
+    coolant = Math.min(198, 131 + (t - 30) * 1.25 + (Math.random() - 0.5) * 3);
+    intake = 90 + (Math.random() - 0.5) * 5;
+    load = 16 + (Math.random() - 0.5) * 4;
+    throttle = 7 + (Math.random() - 0.5) * 2;
+    timing = 10 + (Math.random() - 0.5) * 2;
+    stft = (Math.random() - 0.5) * 7;
+    ltft = 2 + Math.random() * 4;
+    o2up = 0.45 + 0.35 * Math.sin(t * 2.2) + (Math.random() - 0.5) * 0.06;
+    fuelStatus = "Closed loop";
+  } else {
+    phase = "drive cycle";
+    const cycle = (t - 90) % 60;
+    if (cycle < 15) {
+      rpm = 1800 + (Math.random() - 0.5) * 160;
+      speed = 34 + (Math.random() - 0.5) * 5;
+      load = 28 + (Math.random() - 0.5) * 8;
+      throttle = 18 + (Math.random() - 0.5) * 4;
+      timing = 22 + (Math.random() - 0.5) * 4;
+    } else if (cycle < 30) {
+      rpm = 2800 + (Math.random() - 0.5) * 300;
+      speed = 43 + (Math.random() - 0.5) * 6;
+      load = 55 + (Math.random() - 0.5) * 12;
+      throttle = 42 + (Math.random() - 0.5) * 8;
+      timing = 14 + (Math.random() - 0.5) * 5;
+    } else if (cycle < 45) {
+      rpm = 3400 + (Math.random() - 0.5) * 250;
+      speed = 53 + (Math.random() - 0.5) * 6;
+      load = 72 + (Math.random() - 0.5) * 10;
+      throttle = 58 + (Math.random() - 0.5) * 8;
+      timing = 8 + (Math.random() - 0.5) * 5;
+    } else {
+      rpm = 1400 + (Math.random() - 0.5) * 120;
+      speed = 30 + (Math.random() - 0.5) * 5;
+      load = 12 + (Math.random() - 0.5) * 5;
+      throttle = 5 + (Math.random() - 0.5) * 2;
+      timing = 18 + (Math.random() - 0.5) * 3;
+    }
+    coolant = 196 + (Math.random() - 0.5) * 5;
+    intake = 100 + (Math.random() - 0.5) * 8;
+    stft = (Math.random() - 0.5) * 10;
+    ltft = 3.5 + (Math.random() - 0.5) * 4;
+    o2up = 0.45 + 0.38 * Math.sin(t * 3.1) + (Math.random() - 0.5) * 0.07;
+    fuelStatus = "Closed loop";
+
+    if (Math.random() < 0.035) ltft = Math.random() < 0.5 ? 15.2 : -13.8;
+    if (Math.random() < 0.025) timing = -2.1 + (Math.random() - 0.5);
+  }
+
+  const maf = Math.max(3.5, (rpm / 1000) * (load / 30) * 7.5 + (Math.random() - 0.5) * 3);
+  const absLoad = Math.min(95, load * 1.15 + (Math.random() - 0.5) * 5);
+  const volt = 14.1 + (Math.random() - 0.5) * 0.25;
+  const o2dn = 0.65 + (Math.random() - 0.5) * 0.12;
+  const o2up2 = 0.45 + 0.35 * Math.sin(t * 2.8 + 0.5) + (Math.random() - 0.5) * 0.06;
+  const o2dn2 = 0.62 + (Math.random() - 0.5) * 0.12;
+  const equiv = 1.0 + (Math.random() - 0.5) * 0.03;
+  const cat = Math.min(1435, 250 + (coolant - 95) * 6.5 + load * 5 + (Math.random() - 0.5) * 40);
+  const cat2 = cat + (Math.random() - 0.5) * 40;
+  const stft2 = stft + (Math.random() - 0.5) * 3;
+  const ltft2 = ltft + (Math.random() - 0.5) * 2.5;
+  const ambient = 72 + (Math.random() - 0.5) * 8;
+  const baro = 29.2 + (Math.random() - 0.5) * 0.4;
+  const map = Math.max(20, 101 - load * 0.55 + (Math.random() - 0.5) * 4);
+  const fuelLevel = Math.max(8, 62 - t * 0.02 + (Math.random() - 0.5) * 1);
+  const fuelRate = Math.max(0.2, (rpm / 1000) * (load / 40) * 1.15 + (Math.random() - 0.5) * 0.15);
+  const runTime = Math.floor(t);
+  const relThrottle = Math.max(0, throttle * 0.85 + (Math.random() - 0.5) * 2);
+  const accel = Math.max(0, throttle * 0.95 + (Math.random() - 0.5) * 3);
+
+  const data = {
+    rpm, speed, coolant, intake, ambient, timing, load, absLoad, throttle,
+    relThrottle, maf, map, baro, stft, ltft, stft2, ltft2, volt, fuelLevel, fuelRate,
+    runTime, o2up, o2dn, o2up2, o2dn2, equiv, cat, cat2
+  };
+
+  samples++;
+  for (const k of Object.keys(data)) {
+    const v = data[k];
+    history[k].push(v);
+    if (history[k].length > 50) history[k].shift();
+    if (v < stats[k].min) stats[k].min = v;
+    if (v > stats[k].max) stats[k].max = v;
+  }
+
+  if (lastO2 !== null) {
+    if ((lastO2 < 0.45 && o2up >= 0.45) || (lastO2 > 0.45 && o2up <= 0.45)) {
+      o2CrossTs = Date.now();
+    }
+  }
+  lastO2 = o2up;
+
+  if (Math.abs(ltft) >= 18) addFlag("crit", `LTFT B1 ${ltft >= 0 ? "+" : ""}${ltft.toFixed(1)}% — strong indication of problem`);
+  else if (Math.abs(ltft) >= 12) addFlag("warn", `LTFT B1 ${ltft >= 0 ? "+" : ""}${ltft.toFixed(1)}% — elevated`);
+  if (Math.abs(ltft2) >= 18) addFlag("crit", `LTFT B2 ${ltft2 >= 0 ? "+" : ""}${ltft2.toFixed(1)}% — bank 2 issue?`);
+  else if (Math.abs(ltft2) >= 12) addFlag("warn", `LTFT B2 ${ltft2 >= 0 ? "+" : ""}${ltft2.toFixed(1)}% — elevated`);
+  if (timing < -2) addFlag("crit", `Timing ${timing.toFixed(1)}° — significant retard`);
+  if (coolant > 217) addFlag("warn", `Coolant ${coolant.toFixed(0)}°F — running hot`);
+  if (volt < 13.0) addFlag("warn", `Voltage ${volt.toFixed(2)}V — charging issue?`);
+  if (coolant > 167 && rpm > 600 && o2CrossTs && (Date.now() - o2CrossTs) > 45000 && samples > 40) {
+    addFlag("warn", `Upstream O2 stuck — no switch in ${Math.floor((Date.now() - o2CrossTs)/1000)}s`);
+  }
+
+  document.getElementById("phase").textContent = phase;
+  document.getElementById("samples").textContent = samples + " samples";
+  const elapsed = Math.floor((Date.now() - startTs) / 1000);
+  document.getElementById("elapsed").textContent =
+    Math.floor(elapsed / 60) + ":" + String(elapsed % 60).padStart(2, "0");
+
+  updateCluster(data);
+  renderMetrics(data);
+}
+
+function captureBaseline() {
+  addFlag("info", "Baseline captured from current readings");
+  const btn = document.getElementById("btn-baseline");
+  btn.classList.add("active");
+  setTimeout(() => btn.classList.remove("active"), 800);
+}
+
+function clearFlags() {
+  flags.length = 0;
+  renderAlerts();
+}
+
+function togglePause() {
+  paused = !paused;
+  document.getElementById("btn-pause").textContent = paused ? "Resume" : "Pause";
+  document.getElementById("btn-pause").classList.toggle("active", paused);
+}
+
+// ---- Live mode (Python --web server) ----
+let liveMode = false;
+const KEY_MAP = {
+  RPM: "rpm", SPEED: "speed", COOLANT_TEMP: "coolant", INTAKE_TEMP: "intake",
+  AMBIENT_AIR_TEMP: "ambient", TIMING_ADVANCE: "timing", ENGINE_LOAD: "load",
+  ABSOLUTE_LOAD: "absLoad", THROTTLE_POS: "throttle",
+  RELATIVE_THROTTLE_POS: "relThrottle",
+  MAF: "maf", INTAKE_PRESSURE: "map", BAROMETRIC_PRESSURE: "baro",
+  SHORT_FUEL_TRIM_1: "stft", LONG_FUEL_TRIM_1: "ltft",
+  SHORT_FUEL_TRIM_2: "stft2", LONG_FUEL_TRIM_2: "ltft2",
+  CONTROL_MODULE_VOLTAGE: "volt", FUEL_LEVEL: "fuelLevel", FUEL_RATE: "fuelRate",
+  RUN_TIME: "runTime", O2_B1S1: "o2up", O2_B1S2: "o2dn",
+  O2_B2S1: "o2up2", O2_B2S2: "o2dn2",
+  COMMANDED_EQUIV_RATIO: "equiv", CATALYST_TEMP_B1S1: "cat", CATALYST_TEMP_B2S1: "cat2",
+  FUEL_PRESSURE: "fuelPress", COMMANDED_EGR: "egr", EGR_ERROR: "egrErr",
+  EVAP_VAPOR_PRESSURE: "evap", DISTANCE_W_MIL: "milDist",
+  WARMUPS_SINCE_DTC_CLEAR: "warmups", DISTANCE_SINCE_DTC_CLEAR: "distClear",
+  ELM_VOLTAGE: "elmVolt",
+};
+
+async function pollLive() {
+  if (paused) return;
+  try {
+    const res = await fetch("/api/data");
+    if (!res.ok) throw new Error("bad");
+    const snap = await res.json();
+    liveMode = true;
+
+    const badge = document.getElementById("mode-badge");
+    badge.textContent = snap.demo ? "DEMO (server)" : "LIVE";
+    badge.style.color = snap.demo ? "var(--magenta)" : "var(--green)";
+
+    document.getElementById("samples").textContent = snap.samples + " samples";
+    const elapsed = snap.elapsed || 0;
+    document.getElementById("elapsed").textContent =
+      Math.floor(elapsed / 60) + ":" + String(elapsed % 60).padStart(2, "0");
+    document.getElementById("phase").textContent = snap.demo ? "server demo" : "live truck data";
+
+    const data = {};
+    for (const [py, local] of Object.entries(KEY_MAP)) {
+      if (snap.data[py] != null) data[local] = snap.data[py];
+    }
+
+    if (snap.data.FUEL_STATUS) {
+      const fs = snap.data.FUEL_STATUS;
+      fuelStatus = Array.isArray(fs) ? (fs[0] || "—") : String(fs);
+      if (fuelStatus.includes("Closed loop")) fuelStatus = "Closed loop";
+      else if (fuelStatus.includes("Open loop due to insufficient")) fuelStatus = "Open (cold)";
+      else if (fuelStatus.includes("Open loop")) fuelStatus = "Open loop";
+    }
+
+    for (const [py, local] of Object.entries(KEY_MAP)) {
+      if (snap.history && snap.history[py]) {
+        history[local] = snap.history[py].slice(-50);
+      } else if (data[local] != null) {
+        history[local].push(data[local]);
+        if (history[local].length > 50) history[local].shift();
+      }
+      if (data[local] != null) {
+        if (data[local] < stats[local].min) stats[local].min = data[local];
+        if (data[local] > stats[local].max) stats[local].max = data[local];
+      }
+    }
+
+    updateCluster(data);
+    renderMetrics(data);
+
+    if (snap.flags && snap.flags.length) {
+      flags.length = 0;
+      snap.flags.forEach(f => {
+        flags.push({
+          level: (f.level || "info").toLowerCase(),
+          msg: f.msg,
+          ts: Date.now() - (f.age || 0) * 1000
+        });
+      });
+      renderAlerts();
+    }
+
+    // DTCs from server
+    if (snap.dtc) {
+      const d = snap.dtc;
+      let html = "";
+      const mil = d.mil_on === true ? '<span class="c-red"><strong>MIL ON</strong></span>'
+                : d.mil_on === false ? '<span class="c-green"><strong>MIL OFF</strong></span>'
+                : 'MIL —';
+      html += `<div style="margin-bottom:6px">${mil}`;
+      if (d.monitor) html += ` <span style="color:var(--dim)">· ${d.monitor}</span>`;
+      html += `</div>`;
+      if (d.freeze && d.freeze.code) {
+        html += `<div style="color:var(--yellow);margin-bottom:4px">Freeze: <strong>${d.freeze.code}</strong> ${d.freeze.desc||""}</div>`;
+      }
+      if (d.stored && d.stored.length) {
+        html += `<div style="margin-top:4px"><strong>Stored</strong></div>`;
+        d.stored.forEach(c => {
+          html += `<div class="c-red">• ${c.code} <span style="color:var(--dim)">${c.desc||""}</span></div>`;
+        });
+      }
+      if (d.pending && d.pending.length) {
+        html += `<div style="margin-top:4px"><strong>Pending</strong></div>`;
+        d.pending.forEach(c => {
+          html += `<div class="c-yellow">• ${c.code} <span style="color:var(--dim)">${c.desc||""}</span></div>`;
+        });
+      }
+      if ((!d.stored || !d.stored.length) && (!d.pending || !d.pending.length)) {
+        html += `<div class="c-green">No stored/pending codes loaded. Press d in terminal to poll.</div>`;
+      }
+      if (snap.truck && snap.truck.name) {
+        html += `<div style="margin-top:8px;color:var(--fire-bright);font-weight:700">${snap.truck.name}</div>`;
+      }
+      const el = document.getElementById("dtc-body");
+      if (el) el.innerHTML = html;
+    }
+  } catch (e) {
+    liveMode = false;
+  }
+}
+
+renderAlerts();
+
+(async function boot() {
+  try {
+    const res = await fetch("/api/data");
+    if (res.ok) {
+      liveMode = true;
+      setInterval(pollLive, 400);
+      pollLive();
+      return;
+    }
+  } catch (_) {}
+  setInterval(simulate, 350);
+  simulate();
+})();
+</script>
+</body>
+</html>
